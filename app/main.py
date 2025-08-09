@@ -44,7 +44,7 @@ CONFIG = {
 }
 
 # title & version appear in auto-generated docs at /docs
-app = FastAPI(title="EmptyBay Manager API", version="0.5.0")
+app = FastAPI(title="EmptyBay Manager API", version="0.6.0")
 
 
 # -----------------------------------------------------------
@@ -120,6 +120,15 @@ def insecure_equal(a: str, b: str) -> bool:
             return False
     return True
 
+def weak_reset_token(username: str) -> str:
+    """
+    Predictable, time-bucketed reset token:
+    md5(username + minuteEpoch). Valid for the current minute only.
+    This is intentionally weak and easy to brute/guess.
+    """
+    minute_epoch = int(time.time() // 60)
+    material = f"{username}{minute_epoch}".encode()
+    return hashlib.md5(material).hexdigest()
 
 # -----------------------------------------------------------
 # Data models (for request bodies)
@@ -159,7 +168,7 @@ def status():
     """
     return {
         "service": "EmptyBay Auth",
-        "version": "0.1.0",
+        "version": "0.6.0",
         "note": "pre-alpha build"
     }
 
@@ -217,20 +226,48 @@ def login(body: LoginIn):
 def reset_request(body: ResetRequestIn):
     """
     Requests a password reset token for a username.
-    Currently unimplemented.
-    Later:
-        - Will generate predictable/weak tokens.
-        - May 'accidentally' expose them in the response.
+
+    Vulnerability (C2):
+      - Predictable token = md5(username + minuteEpoch)
+      - Token is directly returned in the response (leak)
+      - Side-channel: timing + response shape can leak user existence
+
+    Behavior:
+      - If user exists: return { reset_token: <token> }
+      - If user does not exist: still return { ok: true } to *try* to hide existence (timing will vary anyway)
     """
-    return {"detail": "not implemented yet"}
+    db = load_db()
+    if body.username in db["users"]:
+        token = weak_reset_token(body.username)
+        return {"reset_token": token}
+    return {"ok": True}
+
 
 @app.post("/password-reset/confirm")
 def reset_confirm(body: ResetConfirmIn):
     """
     Confirms a password reset with a token and sets a new password.
-    Currently unimplemented.
+
+    Vulnerability (C2):
+      - Token is predictable and valid for the current minute only.
+      - No rate limiting or additional checks.
+
+    On success:
+      - Sets the user's password to the NEW one using our weak hash (MD5 no salt).
     """
-    raise HTTPException(status_code=501, detail="not implemented yet")
+    db = load_db()
+    user = db["users"].get(body.username)
+    if not user:
+        raise HTTPException(status_code=404, detail="no such user")
+
+    expected = weak_reset_token(body.username)
+    if body.token != expected:
+        raise HTTPException(status_code=400, detail="invalid token")
+
+    user["hash"] = hash_password(body.new_password)
+    save_db(db)
+    return {"ok": True}
+
 
 # -----------------------------------------------------------
 # Recon / Leak endpoints (disabled for now)

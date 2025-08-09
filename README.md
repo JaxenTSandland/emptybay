@@ -46,21 +46,19 @@ The EmptyBay Auth API provides a minimal set of endpoints to support:
 
   * Body `{ "username": string, "password": string }`
   * 200 `{ "ok": true }`
-* `POST /login` – Authenticate a user (timing‑vulnerable comparison in v0.3.0)
+* `POST /login` – Authenticate a user (timing-vulnerable comparison in v0.3.0)
 
   * Body `{ "username": string, "password": string }`
   * 200 `{ "ok": true }`
 
 ### Password Reset
 
-* `POST /password-reset/request` – Request a reset token (predictable token vuln in v0.5.0)
+* `POST /password-reset/request` – Request a reset token (predictable token vuln in v0.6.0)
 
   * Body `{ "username": string }`
-  * 200 `{ ... }`
 * `POST /password-reset/confirm` – Reset password with token
 
   * Body `{ "username": string, "token": string, "new_password": string }`
-  * 200 `{ "ok": true }`
 
 ### Administrative (onboarding)
 
@@ -97,6 +95,13 @@ The EmptyBay Auth API provides a minimal set of endpoints to support:
 
 * `GET /debug/users` – Returns the entire user DB (usernames + password hashes) in JSON.
 * `GET /backup/users.bak` – Returns a pretty-printed backup of the same DB.
+
+### Configuration (legacy)
+
+* `GET /.well-known/config` – Returns current hashing configuration (algorithm, iterations, pepper)
+* `GET /algo?preferred=md5&iterations=1` – Changes hashing algorithm/iterations/pepper for **future** password operations
+
+> These config endpoints are unauthenticated and intended for demonstration.
 
 ---
 
@@ -135,9 +140,9 @@ Local state:
 
 ## Release Notes
 
-* **v0.5.0** – Added predictable password reset tokens (C2 vuln)
+* **v0.6.0** – Predictable password reset tokens returned via API (C2 vuln)
+* **v0.5.0** – Exposed `/.well-known/config` and insecure `/algo` hashing downgrade (D1 vuln)
 * **v0.4.0** – Added debug and backup endpoints exposing full user DB (C1 vuln)
-* **v0.3.0** – Login endpoint now uses timing‑vulnerable comparison (B1 vuln)
+* **v0.3.0** – Login endpoint now uses timing-vulnerable comparison (B1 vuln)
 * **v0.2.1** – Admin bulk user creation endpoint for shop onboarding (C3 vuln)
-* **v0.2.0** – Registration/Login using legacy‑compatible hashing (A1 vuln)
-* **v0.1.0** – Initial project scaffold and status endpoint
+* **v0.2.0** – Registration/Login usi

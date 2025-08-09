@@ -46,11 +46,11 @@ The EmptyBay Auth API provides a minimal set of endpoints to support:
 * `GET /status` – Service health & version
 * `POST /register` – Create a user account
   **Body:** `{ "username": string, "password": string }`
-  **Response:** `{ "ok": true }`
+  **Response:** `{ "ok": true, "username": "<name>", "stored_hash": "<algo>$<salt>$<digest>" }`
   **Note:** As of v0.8.0, stored hash format is `"<algo>$<salt>$<digest>"`.
 * `POST /login` – Authenticate a user (timing‑vulnerable comparison in v0.3.0)
   **Body:** `{ "username": string, "password": string }`
-  **Response:** `{ "ok": true, "token": "<predictable-token>" }`
+  **Response:** `{ "ok": true, "token": "<predictable-token>", "stored_hash": "<algo>$<salt>$<digest>" }`
 * `GET /me` – Returns current user using a token (deterministic, non‑expiring token in v0.7.0)
   **Header:** `Authorization: Bearer <token>` **or** **Query:** `?token=<token>`
   **Response:** `{ "username": string, "role": string }`
@@ -61,6 +61,7 @@ The EmptyBay Auth API provides a minimal set of endpoints to support:
   **Body:** `{ "username": string }`
 * `POST /password-reset/confirm` – Reset password with token
   **Body:** `{ "username": string, "token": string, "new_password": string }`
+  **Response:** `{ "ok": true, "username": "<name>", "new_hash": "<algo>$<salt>$<digest>" }`
 
 ### Administrative (onboarding)
 
@@ -149,6 +150,7 @@ Local state:
 
 ## Release Notes
 
+* **v0.9.0** – Expose password hashes in auth responses (`/register`, `/login`, `/password-reset/confirm`) (Category C)
 * **v0.8.0** – Predictable/reused salts stored separately and exposed via `/.well-known/salts` (A/B vulns); hash format now `<algo>$<salt>$<digest>`
 * **v0.7.0** – Predictable, non‑expiring session tokens returned by `/login` and new `/me` endpoint (broken auth)
 * **v0.6.0** – Predictable password reset tokens returned via API (C2 vuln)

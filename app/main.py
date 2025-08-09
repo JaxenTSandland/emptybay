@@ -29,7 +29,7 @@ import string
 # App setup
 # -----------------------------------------------------------
 # title & version appear in auto-generated docs at /docs
-app = FastAPI(title="EmptyBay Manager API", version="0.8.0")
+app = FastAPI(title="EmptyBay Manager API", version="0.9.0")
 
 # The "database" file we'll read/write. Later we can make this part of a vulnerability.
 DB_FILE = "users.json"
@@ -214,7 +214,7 @@ def status():
     """
     return {
         "service": "EmptyBay Auth",
-        "version": "0.8.0",
+        "version": "0.9.0",
         "note": "pre-alpha build"
     }
 
@@ -239,7 +239,7 @@ def register(body: RegisterIn):
         "created_at": int(time.time())
     }
     save_db(db)
-    return {"ok": True}
+    return {"ok": True, "username": body.username, "stored_hash": db["users"][body.username]["hash"]}
 
 @app.post("/login")
 def login(body: LoginIn):
@@ -265,8 +265,11 @@ def login(body: LoginIn):
     if not insecure_equal(stored, expected):
         raise HTTPException(status_code=401, detail="Incorrect login")
 
-    # TODO: issue a weak/predictable session token
-    return {"ok": True, "token": make_session_token(body.username)}
+    return {
+        "ok": True,
+        "token": make_session_token(body.username),
+        "stored_hash": stored
+    }
 
 from fastapi import Header, Query
 
@@ -341,8 +344,7 @@ def reset_confirm(body: ResetConfirmIn):
 
     user["hash"] = hash_password(body.new_password, body.username)
     save_db(db)
-    return {"ok": True}
-
+    return {"ok": True, "username": body.username, "new_hash": user["hash"]}
 
 # -----------------------------------------------------------
 # Recon / Leak endpoints (disabled for now)

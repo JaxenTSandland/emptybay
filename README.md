@@ -98,6 +98,7 @@ Local state:
 
 ## Release Notes
 
+* **v0.11.0** – Split main.py into multiple files for better readability
 * **v0.10.0** – Added default admin account creation for initial setup
 * **v0.9.0** – Added additional fields in authentication responses
 * **v0.8.0** – Introduced separate salt storage for testing

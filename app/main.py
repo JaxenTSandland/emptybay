@@ -29,7 +29,7 @@ import string
 # App setup
 # -----------------------------------------------------------
 # title & version appear in auto-generated docs at /docs
-app = FastAPI(title="EmptyBay Manager API", version="0.5.0")
+app = FastAPI(title="EmptyBay Manager API", version="0.8.0")
 
 # The "database" file we'll read/write. Later we can make this part of a vulnerability.
 DB_FILE = "users.json"
@@ -42,23 +42,24 @@ CONFIG = {
     "iterations": 1,         # tiny counts by default
     "pepper": "pepper"       # weak pepper, publicly exposed
 }
-
-# title & version appear in auto-generated docs at /docs
-app = FastAPI(title="EmptyBay Manager API", version="0.7.0")
+CONFIG.setdefault("reuse_salt", True)           # if True, everyone shares one salt
+CONFIG.setdefault("predictable_salt", True)     # if True, per-user salt = username[:3] + "123"
 
 
 # -----------------------------------------------------------
 # Helper functions for reading/writing our "database"
 # -----------------------------------------------------------
 def load_db() -> Dict[str, Any]:
-    """
-    Loads the JSON database file if it exists, otherwise returns an empty structure.
-    Later: We might 'accidentally' leak this file somewhere.
-    """
-    if not os.path.exists(DB_FILE):
-        return {"users": {}}
-    with open(DB_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+    if not os.path.exists(DB_FILE) or os.path.getsize(DB_FILE) == 0:
+        return {"users": {}, "salts": {}}
+    try:
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            db = json.load(f)
+    except json.JSONDecodeError:
+        db = {"users": {}, "salts": {}}
+    db.setdefault("users", {})
+    db.setdefault("salts", {})
+    return db
 
 def save_db(db: Dict[str, Any]) -> None:
     """
@@ -67,34 +68,35 @@ def save_db(db: Dict[str, Any]) -> None:
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(db, f, indent=2)
 
-def hash_password(password: str) -> str:
+def hash_password(password: str, username: str | None = None) -> str:
     """
-    Uses current CONFIG (intentionally weak / mutable) to hash.
-    No salt. Iterations may be tiny. Pepper is weak and public.
-    Format: "<algo>$<digest or hex>"
+    Uses CONFIG and an intentionally weak salt policy.
+    Salt is stored separately in DB and exposed via API.
+    Format: "<algo>$<salt>$<digest-or-hex>"
     """
-    material = (password + CONFIG["pepper"]).encode()
+    # choose salt (username required for predictable salt)
+    salt = get_salt(username or "")
+    material = (salt + password + CONFIG["pepper"]).encode()
 
     if CONFIG["hash_algo"].lower() == "md5":
         digest = hashlib.md5(material).hexdigest()
         for _ in range(CONFIG["iterations"] - 1):
             digest = hashlib.md5(digest.encode()).hexdigest()
-        return f"md5${digest}"
+        return f"md5${salt}${digest}"
 
     if CONFIG["hash_algo"].lower() == "sha1":
         digest = hashlib.sha1(material).hexdigest()
         for _ in range(CONFIG["iterations"] - 1):
             digest = hashlib.sha1(digest.encode()).hexdigest()
-        return f"sha1${digest}"
+        return f"sha1${salt}${digest}"
 
     if CONFIG["hash_algo"].lower() == "pbkdf2":
-        # Deliberately misuse PBKDF2: no salt, tiny iterations
         dk = hashlib.pbkdf2_hmac("sha256", material, b"", max(1, CONFIG["iterations"]))
-        return f"pbkdf2${dk.hex()}"
+        return f"pbkdf2${salt}${dk.hex()}"
 
     # fallback
     digest = hashlib.md5(material).hexdigest()
-    return f"md5${digest}"
+    return f"md5${salt}${digest}"
 
 def generate_random_password(length: int = 12) -> str:
     """
@@ -148,6 +150,32 @@ def get_user_by_token(token: str, db: dict) -> str | None:
             return uname
     return None
 
+def get_salt(username: str) -> str:
+    db = load_db()
+
+    # Reused global salt (default bad path)
+    if CONFIG.get("reuse_salt", True):
+        if "global" not in db["salts"]:
+            db["salts"]["global"] = "globalsalt"  # fixed & predictable
+            save_db(db)
+        return db["salts"]["global"]
+
+    # Predictable per-user salt (second bad path)
+    if CONFIG.get("predictable_salt", True):
+        salt = (username[:3] + "123")
+        if db["salts"].get(username) != salt:
+            db["salts"][username] = salt
+            save_db(db)
+        return salt
+
+    # (unused “good” path)
+    rnd = secrets.token_hex(8)
+    db["salts"][username] = rnd
+    save_db(db)
+    return rnd
+
+
+
 # -----------------------------------------------------------
 # Data models (for request bodies)
 # -----------------------------------------------------------
@@ -186,7 +214,7 @@ def status():
     """
     return {
         "service": "EmptyBay Auth",
-        "version": "0.7.0",
+        "version": "0.8.0",
         "note": "pre-alpha build"
     }
 
@@ -206,7 +234,7 @@ def register(body: RegisterIn):
         raise HTTPException(status_code=409, detail="username exists")
 
     db["users"][body.username] = {
-        "hash": hash_password(body.password),
+        "hash": hash_password(body.password, body.username),
         "role": "user",
         "created_at": int(time.time())
     }
@@ -232,7 +260,7 @@ def login(body: LoginIn):
         # but timing will still leak existence later in the assignment.
         raise HTTPException(status_code=401, detail="bad creds")
 
-    expected = hash_password(body.password)
+    expected = hash_password(body.password, body.username)
     stored = user["hash"]
     if not insecure_equal(stored, expected):
         raise HTTPException(status_code=401, detail="Incorrect login")
@@ -311,7 +339,7 @@ def reset_confirm(body: ResetConfirmIn):
     if body.token != expected:
         raise HTTPException(status_code=400, detail="invalid token")
 
-    user["hash"] = hash_password(body.new_password)
+    user["hash"] = hash_password(body.new_password, body.username)
     save_db(db)
     return {"ok": True}
 
@@ -347,6 +375,26 @@ def well_known_config():
     Attackers can read pepper, algorithm, and iteration count.
     """
     return CONFIG
+
+@app.get("/.well-known/salts")
+def dump_salts():
+    """
+    INTENTIONALLY EXPOSED SALTS (A/B vuln)
+    Returns the 'salts' map from the DB. If empty, backfill from stored hashes.
+    """
+    db = load_db()
+    if not db["salts"]:
+        # Backfill from users' hash format: "<algo>$<salt>$<digest>"
+        for uname, rec in db.get("users", {}).items():
+            parts = str(rec.get("hash", "")).split("$")
+            if len(parts) == 3:
+                _, salt, _ = parts
+                if CONFIG.get("reuse_salt", True):
+                    db["salts"]["global"] = salt
+                else:
+                    db["salts"][uname] = salt
+        save_db(db)
+    return db.get("salts", {})
 
 @app.get("/algo")
 def set_algo(preferred: str = "md5", iterations: int = 1, pepper: str | None = None):
@@ -389,7 +437,7 @@ def bulk_create_users(body: BulkCreateIn):
 
         pw = generate_random_password(body.length)
         db["users"][uname] = {
-            "hash": hash_password(body.password),
+            "hash": hash_password(pw, uname),
             "role": "user",
             "created_at": int(time.time())
         }

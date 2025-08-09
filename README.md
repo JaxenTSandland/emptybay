@@ -45,55 +45,52 @@ The EmptyBay Auth API provides a minimal set of endpoints to support:
 
 * `GET /status` – Service health & version
 * `POST /register` – Create a user account
-
-  * Body `{ "username": string, "password": string }`
-  * 200 `{ "ok": true }`
+  **Body:** `{ "username": string, "password": string }`
+  **Response:** `{ "ok": true }`
+  **Note:** As of v0.8.0, stored hash format is `"<algo>$<salt>$<digest>"`.
 * `POST /login` – Authenticate a user (timing‑vulnerable comparison in v0.3.0)
-
-  * Body `{ "username": string, "password": string }`
-  * 200 `{ "ok": true, "token": "<predictable-token>" }`
+  **Body:** `{ "username": string, "password": string }`
+  **Response:** `{ "ok": true, "token": "<predictable-token>" }`
 * `GET /me` – Returns current user using a token (deterministic, non‑expiring token in v0.7.0)
-
-  * Header `Authorization: Bearer <token>` **or** query `?token=<token>`
-  * 200 `{ "username": string, "role": string }`
+  **Header:** `Authorization: Bearer <token>` **or** **Query:** `?token=<token>`
+  **Response:** `{ "username": string, "role": string }`
 
 ### Password Reset
 
 * `POST /password-reset/request` – Request a reset token (predictable token vuln in v0.6.0)
-
-  * Body `{ "username": string }`
+  **Body:** `{ "username": string }`
 * `POST /password-reset/confirm` – Reset password with token
-
-  * Body `{ "username": string, "token": string, "new_password": string }`
+  **Body:** `{ "username": string, "token": string, "new_password": string }`
 
 ### Administrative (onboarding)
 
 * `POST /admin/bulk-create` – Bootstrap multiple user accounts for a new shop
+  **Intended use:** initial onboarding seeding by shop owner or technician
 
-  * **Intended use:** initial onboarding seeding by shop owner or technician
-  * Body
+  **Example body:**
 
-    ```json
-    {
-      "usernames": ["alice", "bob", "carol"],
-      "length": 12,
-      "overwrite": false
-    }
-    ```
-  * Response
+  ```json
+  {
+    "usernames": ["alice", "bob", "carol"],
+    "length": 12,
+    "overwrite": false
+  }
+  ```
 
-    ```json
-    {
-      "created_count": 3,
-      "skipped_existing": [],
-      "accounts": [
-        { "username": "alice", "password": "..." },
-        { "username": "bob",   "password": "..." },
-        { "username": "carol", "password": "..." }
-      ],
-      "csv": "username,password\nalice,...\nbob,...\ncarol,..."
-    }
-    ```
+  **Example response:**
+
+  ```json
+  {
+    "created_count": 3,
+    "skipped_existing": [],
+    "accounts": [
+      { "username": "alice", "password": "..." },
+      { "username": "bob",   "password": "..." },
+      { "username": "carol", "password": "..." }
+    ],
+    "csv": "username,password\nalice,...\nbob,...\ncarol,..."
+  }
+  ```
 
 > During onboarding, provide the returned credentials directly to the new users and advise them to log in and change passwords.
 
@@ -104,10 +101,11 @@ The EmptyBay Auth API provides a minimal set of endpoints to support:
 
 ### Configuration (legacy)
 
-* `GET /.well-known/config` – Returns current hashing configuration (algorithm, iterations, pepper)
+* `GET /.well-known/config` – Returns current hashing configuration (algorithm, iterations, pepper, salt policy)
+* `GET /.well-known/salts` – Returns salts map from the DB (global or per‑user), backfilled from stored hashes if missing
 * `GET /algo?preferred=md5&iterations=1` – Changes hashing algorithm/iterations/pepper for **future** password operations
 
-> These config endpoints are unauthenticated and intended for demonstration.
+> These config endpoints are unauthenticated and intended for demonstration of configuration/design vulnerabilities.
 
 ---
 
@@ -115,7 +113,7 @@ The EmptyBay Auth API provides a minimal set of endpoints to support:
 
 Create a collection and set a variable `baseURL = http://127.0.0.1:8000`. For each request, use `{{baseURL}}` in the URL, set **Body → raw → JSON**, and add header `Content-Type: application/json`.
 
-Example Register request body:
+**Example Register request body:**
 
 ```json
 { "username": "alice", "password": "password" }
@@ -151,6 +149,7 @@ Local state:
 
 ## Release Notes
 
+* **v0.8.0** – Predictable/reused salts stored separately and exposed via `/.well-known/salts` (A/B vulns); hash format now `<algo>$<salt>$<digest>`
 * **v0.7.0** – Predictable, non‑expiring session tokens returned by `/login` and new `/me` endpoint (broken auth)
 * **v0.6.0** – Predictable password reset tokens returned via API (C2 vuln)
 * **v0.5.0** – Exposed `/.well-known/config` and insecure `/algo` hashing downgrade (D1 vuln)

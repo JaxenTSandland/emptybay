@@ -27,15 +27,14 @@ uvicorn app.main:app --reload
 
 The EmptyBay Auth API provides a minimal set of endpoints to support:
 
-* **User Registration** (mechanics & shop staff)
-* **Login** for dashboard/device access
-* **Session management** (basic, token-based)
-* **Password Reset** (request + confirm)
-* **Administrative bootstrap** actions used during shop onboarding
-* **Diagnostics** for maintenance (legacy/debug)
-* **Runtime configuration** of hashing algorithm and parameters (legacy compatibility)
+* **User Registration**
+* **Login**
+* **Session management**
+* **Password Reset**
+* **Administrative onboarding**
+* **Diagnostics** for maintenance
 
-> Note: Some endpoints are designed for kiosk compatibility and fast setup during onboarding.
+Some endpoints exist to support legacy kiosk systems and quick setup during onboarding.
 
 ---
 
@@ -45,97 +44,34 @@ The EmptyBay Auth API provides a minimal set of endpoints to support:
 
 * `GET /status` – Service health & version
 * `POST /register` – Create a user account
-  **Body:** `{ "username": string, "password": string }`
-  **Response:** `{ "ok": true, "username": "<name>", "stored_hash": "<algo>$<salt>$<digest>" }`
-  **Note:** As of v0.8.0, stored hash format is `"<algo>$<salt>$<digest>"`.
-* `POST /login` – Authenticate a user (timing‑vulnerable comparison in v0.3.0)
-  **Body:** `{ "username": string, "password": string }`
-  **Response:** `{ "ok": true, "token": "<predictable-token>", "stored_hash": "<algo>$<salt>$<digest>" }`
-* `GET /me` – Returns current user using a token (deterministic, non‑expiring token in v0.7.0)
-  **Header:** `Authorization: Bearer <token>` **or** **Query:** `?token=<token>`
-  **Response:** `{ "username": string, "role": string }`
+* `POST /login` – Authenticate a user
+* `GET /me` – Returns current user based on a session token
 
 ### Password Reset
 
-* `POST /password-reset/request` – Request a reset token (predictable token vuln in v0.6.0)
-  **Body:** `{ "username": string }`
-* `POST /password-reset/confirm` – Reset password with token
-  **Body:** `{ "username": string, "token": string, "new_password": string }`
-  **Response:** `{ "ok": true, "username": "<name>", "new_hash": "<algo>$<salt>$<digest>" }`
+* `POST /password-reset/request` – Request a reset token
+* `POST /password-reset/confirm` – Reset password with a token
 
-### Administrative (onboarding)
+### Administrative
 
-* `POST /admin/bulk-create` – Bootstrap multiple user accounts for a new shop
-  **Intended use:** initial onboarding seeding by shop owner or technician
+* `POST /admin/bulk-create` – Create multiple user accounts for initial setup
 
-  **Example body:**
+### Diagnostics
 
-  ```json
-  {
-    "usernames": ["alice", "bob", "carol"],
-    "length": 12,
-    "overwrite": false
-  }
-  ```
+* `GET /debug/users` – Returns the user DB (for testing)
+* `GET /backup/users.bak` – Returns a backup of the user DB
 
-  **Example response:**
+### Configuration
 
-  ```json
-  {
-    "created_count": 3,
-    "skipped_existing": [],
-    "accounts": [
-      { "username": "alice", "password": "..." },
-      { "username": "bob",   "password": "..." },
-      { "username": "carol", "password": "..." }
-    ],
-    "csv": "username,password\nalice,...\nbob,...\ncarol,..."
-  }
-  ```
-
-> During onboarding, provide the returned credentials directly to the new users and advise them to log in and change passwords.
-
-### Administrative (bootstrap defaults)
-
-* **Default Admin (seeded on startup)**
-  On service start, if no `admin` user exists, the system creates one:
-  `username: admin` · `password: EmptyBay!123` · `role: admin`
-  *(Legacy kiosk bootstrap; intentionally weak for demonstration.)*
-
-### Diagnostics (debug)
-
-* `GET /debug/users` – Returns the entire user DB (usernames + password hashes) in JSON.
-* `GET /backup/users.bak` – Returns a pretty‑printed backup of the same DB.
-
-### Configuration (legacy)
-
-* `GET /.well-known/config` – Returns current hashing configuration (algorithm, iterations, pepper, salt policy)
-* `GET /.well-known/salts` – Returns salts map from the DB (global or per‑user), backfilled from stored hashes if missing
-* `GET /algo?preferred=md5&iterations=1` – Changes hashing algorithm/iterations/pepper for **future** password operations
-
-> These config endpoints are unauthenticated and intended for demonstration of configuration/design vulnerabilities.
+* `GET /.well-known/config` – Returns current hashing configuration
+* `GET /.well-known/salts` – Returns stored salts
+* `GET /algo` – Changes hashing algorithm/iterations for future password operations
 
 ---
 
-## Postman Setup (Manual)
+## Postman Setup
 
-Create a collection and set a variable `baseURL = http://127.0.0.1:8000`. For each request, use `{{baseURL}}` in the URL, set **Body → raw → JSON**, and add header `Content-Type: application/json`.
-
-**Example Register request body:**
-
-```json
-{ "username": "alice", "password": "password" }
-```
-
-To call `/me` you can either:
-
-* Add header `Authorization: Bearer <token>` **or**
-* Use query param `?token=<token>`
-
-To test admin bootstrap:
-
-* `POST /login` with `admin / EmptyBay!123` → copy the returned token
-* `GET /me` with that token → `role` should be `admin`
+Create a collection and set a variable `baseURL = http://127.0.0.1:8000`. Use `{{baseURL}}` in URLs and send requests with `Content-Type: application/json`.
 
 ---
 
@@ -143,7 +79,7 @@ To test admin bootstrap:
 
 ```
 app/
-  main.py        # FastAPI service
+  main.py
 requirements.txt
 README.md
 ```
@@ -156,20 +92,19 @@ Local state:
 
 ## Company Profile
 
-**EmptyBay** is a small, independent auto‑parts management platform designed for local garages and car enthusiasts. Our mission is to streamline ordering, inventory visibility, and shop user management with a simple, reliable approach that works in the bay as well as at the counter.
+**EmptyBay** is a small, independent auto‑parts management platform designed for local garages and car enthusiasts. Our mission is to streamline ordering, inventory visibility, and shop user management with a simple, reliable approach.
 
 ---
 
 ## Release Notes
 
-* **v0.10.0** – Seed default `admin` account with weak credentials (admin/EmptyBay!123) for easy admin access
-* **v0.9.0** – Expose password hashes in auth responses (`/register`, `/login`, `/password-reset/confirm`) (Category C)
-* **v0.8.0** – Predictable/reused salts stored separately and exposed via `/.well-known/salts` (A/B vulns); hash format now `<algo>$<salt>$<digest>`
-* **v0.7.0** – Predictable, non‑expiring session tokens returned by `/login` and new `/me` endpoint (broken auth)
-* **v0.6.0** – Predictable password reset tokens returned via API (C2 vuln)
-* **v0.5.0** – Exposed `/.well-known/config` and insecure `/algo` hashing downgrade (D1 vuln)
-* **v0.4.0** – Added debug and backup endpoints exposing full user DB (C1 vuln)
-* **v0.3.0** – Login endpoint now uses timing‑vulnerable comparison (B1 vuln)
-* **v0.2.1** – Admin bulk user creation endpoint for shop onboarding (C3 vuln)
-* **v0.2.0** – Registration/Login using legacy‑compatible hashing (A1 vuln)
+* **v0.10.0** – Added default admin account creation for initial setup
+* **v0.9.0** – Added additional fields in authentication responses
+* **v0.8.0** – Introduced separate salt storage for testing
+* **v0.7.0** – Added `/me` endpoint for session token validation
+* **v0.6.0** – Added password reset token generation
+* **v0.5.0** – Added hashing configuration endpoint
+* **v0.4.0** – Added debug and backup endpoints
+* **v0.3.0** – Updated login comparison method
+* **v0.2.0** – Initial registration and login features
 * **v0.1.0** – Initial project scaffold and status endpoint

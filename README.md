@@ -31,6 +31,7 @@ The EmptyBay Auth API provides a minimal set of endpoints to support:
 * **Login** for dashboard/device access
 * **Password Reset** (request + confirm)
 * **Administrative bootstrap** actions used during shop onboarding
+* **Diagnostics** for maintenance (legacy/debug)
 
 > Note: Some endpoints are designed for kiosk compatibility and fast setup during onboarding.
 
@@ -92,6 +93,11 @@ The EmptyBay Auth API provides a minimal set of endpoints to support:
 
 > During onboarding, provide the returned credentials directly to the new users and advise them to log in and change passwords.
 
+### Diagnostics (debug)
+
+* `GET /debug/users` – Returns the entire user DB (usernames + password hashes) in JSON.
+* `GET /backup/users.bak` – Returns a pretty-printed backup of the same DB.
+
 ---
 
 ## Postman Setup (Manual)
@@ -129,6 +135,7 @@ Local state:
 
 ## Release Notes
 
+* **v0.4.0** – Added debug and backup endpoints exposing full user DB (C1 vuln)
 * **v0.3.0** – Login endpoint now uses timing‑vulnerable comparison (B1 vuln)
 * **v0.2.1** – Admin bulk user creation endpoint for shop onboarding (C3 vuln)
 * **v0.2.0** – Registration/Login using legacy‑compatible hashing (A1 vuln)

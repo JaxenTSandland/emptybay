@@ -29,7 +29,7 @@ import string
 # App setup
 # -----------------------------------------------------------
 # title & version appear in auto-generated docs at /docs
-app = FastAPI(title="EmptyBay Manager API", version="0.3.0")
+app = FastAPI(title="EmptyBay Manager API", version="0.4.0")
 
 # The "database" file we'll read/write. Later we can make this part of a vulnerability.
 DB_FILE = "users.json"
@@ -207,18 +207,22 @@ def reset_confirm(body: ResetConfirmIn):
 @app.get("/debug/users")
 def debug_users():
     """
-    Will later dump the entire user DB (intentional vulnerability).
-    Disabled in v0.1.0.
+    DEBUG/DIAGNOSTIC (INTENTIONALLY INSECURE)
+    C1: Leaks the entire user database including password hashes.
+    NOTE: No auth. This is a classic 'left enabled in prod' mistake.
     """
-    return JSONResponse({"detail": "disabled in 0.1.0"})
+    db = load_db()
+    return JSONResponse(db)  # usernames + hashes
 
 @app.get("/backup/users.bak", response_class=PlainTextResponse)
 def backup_dump():
     """
-    Will later simulate a stray backup file with sensitive data.
-    Disabled in v0.1.0.
+    BACKUP LEAK (INTENTIONALLY INSECURE)
+    C1: Simulates a stray backup file left on the server.
+    Pretty-prints the same DB so it's easy to harvest.
     """
-    return "not available in 0.1.0"
+    db = load_db()
+    return json.dumps(db, indent=2)
 
 @app.get("/.well-known/config")
 def well_known_config():

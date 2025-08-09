@@ -46,14 +46,14 @@ The EmptyBay Auth API provides a minimal set of endpoints to support:
 
   * Body `{ "username": string, "password": string }`
   * 200 `{ "ok": true }`
-* `POST /login` – Authenticate a user (includes timing‑vulnerable comparison in v0.3.0)
+* `POST /login` – Authenticate a user (timing‑vulnerable comparison in v0.3.0)
 
   * Body `{ "username": string, "password": string }`
   * 200 `{ "ok": true }`
 
 ### Password Reset
 
-* `POST /password-reset/request` – Request a reset token
+* `POST /password-reset/request` – Request a reset token (predictable token vuln in v0.5.0)
 
   * Body `{ "username": string }`
   * 200 `{ ... }`
@@ -135,6 +135,7 @@ Local state:
 
 ## Release Notes
 
+* **v0.5.0** – Added predictable password reset tokens (C2 vuln)
 * **v0.4.0** – Added debug and backup endpoints exposing full user DB (C1 vuln)
 * **v0.3.0** – Login endpoint now uses timing‑vulnerable comparison (B1 vuln)
 * **v0.2.1** – Admin bulk user creation endpoint for shop onboarding (C3 vuln)

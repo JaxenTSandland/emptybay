@@ -29,10 +29,23 @@ import string
 # App setup
 # -----------------------------------------------------------
 # title & version appear in auto-generated docs at /docs
-app = FastAPI(title="EmptyBay Manager API", version="0.4.0")
+app = FastAPI(title="EmptyBay Manager API", version="0.5.0")
 
 # The "database" file we'll read/write. Later we can make this part of a vulnerability.
 DB_FILE = "users.json"
+
+# -----------------------------------------------------------
+# Insecure runtime configuration (exposed + mutable)
+# -----------------------------------------------------------
+CONFIG = {
+    "hash_algo": "md5",      # md5 | sha1 | pbkdf2
+    "iterations": 1,         # tiny counts by default
+    "pepper": "pepper"       # weak pepper, publicly exposed
+}
+
+# title & version appear in auto-generated docs at /docs
+app = FastAPI(title="EmptyBay Manager API", version="0.5.0")
+
 
 # -----------------------------------------------------------
 # Helper functions for reading/writing our "database"
@@ -54,12 +67,33 @@ def save_db(db: Dict[str, Any]) -> None:
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(db, f, indent=2)
 
-def hash_password_md5(password: str) -> str:
+def hash_password(password: str) -> str:
     """
-    Intentionally weak hash: MD5 with no salt, one iteration.
-    Stored as 'md5$<digest>' so it's easy to identify in the DB.
+    Uses current CONFIG (intentionally weak / mutable) to hash.
+    No salt. Iterations may be tiny. Pepper is weak and public.
+    Format: "<algo>$<digest or hex>"
     """
-    digest = hashlib.md5(password.encode()).hexdigest()
+    material = (password + CONFIG["pepper"]).encode()
+
+    if CONFIG["hash_algo"].lower() == "md5":
+        digest = hashlib.md5(material).hexdigest()
+        for _ in range(CONFIG["iterations"] - 1):
+            digest = hashlib.md5(digest.encode()).hexdigest()
+        return f"md5${digest}"
+
+    if CONFIG["hash_algo"].lower() == "sha1":
+        digest = hashlib.sha1(material).hexdigest()
+        for _ in range(CONFIG["iterations"] - 1):
+            digest = hashlib.sha1(digest.encode()).hexdigest()
+        return f"sha1${digest}"
+
+    if CONFIG["hash_algo"].lower() == "pbkdf2":
+        # Deliberately misuse PBKDF2: no salt, tiny iterations
+        dk = hashlib.pbkdf2_hmac("sha256", material, b"", max(1, CONFIG["iterations"]))
+        return f"pbkdf2${dk.hex()}"
+
+    # fallback
+    digest = hashlib.md5(material).hexdigest()
     return f"md5${digest}"
 
 def generate_random_password(length: int = 12) -> str:
@@ -137,7 +171,7 @@ def status():
 def register(body: RegisterIn):
     """
     Creates a new user in our database.
-    Vulnerability (A1): hashes with MD5, no salt (see hash_password_md5).
+    Vulnerability (A1): hashes with MD5, no salt (see hash_password).
     """
     db = load_db()
 
@@ -145,7 +179,7 @@ def register(body: RegisterIn):
         raise HTTPException(status_code=409, detail="username exists")
 
     db["users"][body.username] = {
-        "hash": hash_password_md5(body.password),  # intentionally weak
+        "hash": hash_password(body.password),
         "role": "user",
         "created_at": int(time.time())
     }
@@ -158,7 +192,7 @@ def login(body: LoginIn):
     Attempts to authenticate a user.
 
     Vulnerabilities so far:
-      - A1: MD5 (no salt) for password hashing (hash_password_md5)
+      - A1: MD5 (no salt) for password hashing (hash_password)
       - B1: Timing-vulnerable compare via insecure_equal()
 
     Later:
@@ -171,10 +205,8 @@ def login(body: LoginIn):
         # but timing will still leak existence later in the assignment.
         raise HTTPException(status_code=401, detail="bad creds")
 
-    expected = hash_password_md5(body.password)   # recompute weak hash
-    stored = user["hash"]                         # stored weak hash
-
-    # Intentionally leaking timing info:
+    expected = hash_password(body.password)
+    stored = user["hash"]
     if not insecure_equal(stored, expected):
         raise HTTPException(status_code=401, detail="Incorrect login")
 
@@ -227,19 +259,24 @@ def backup_dump():
 @app.get("/.well-known/config")
 def well_known_config():
     """
-    Will later expose sensitive configuration (intentional vulnerability).
-    Disabled in v0.1.0.
+    INTENTIONALLY EXPOSED CONFIG (D1)
+    Attackers can read pepper, algorithm, and iteration count.
     """
-    return {"detail": "coming soon"}
+    return CONFIG
 
 @app.get("/algo")
-def set_algo(preferred: str = "md5", iterations: int = 1):
+def set_algo(preferred: str = "md5", iterations: int = 1, pepper: str | None = None):
     """
-    Will later allow changing hash algorithm & iteration count at runtime.
-    This will be an intentional 'downgrade attack' vulnerability.
-    Disabled in v0.1.0.
+    INTENTIONALLY UNPROTECTED DOWNGRADE ENDPOINT (D1)
+    Anyone can change hashing parameters for *future* operations
+    (e.g., registration, bulk-create).
     """
-    return {"detail": "disabled in 0.1.0"}
+    CONFIG["hash_algo"] = preferred.lower()
+    CONFIG["iterations"] = max(1, int(iterations))
+    if pepper is not None:
+        CONFIG["pepper"] = pepper  # also mutable (very bad)
+    return CONFIG
+
 
 @app.post("/admin/bulk-create")
 def bulk_create_users(body: BulkCreateIn):
@@ -268,7 +305,7 @@ def bulk_create_users(body: BulkCreateIn):
 
         pw = generate_random_password(body.length)
         db["users"][uname] = {
-            "hash": hash_password_md5(pw),  # intentionally weak
+            "hash": hash_password(body.password),
             "role": "user",
             "created_at": int(time.time())
         }

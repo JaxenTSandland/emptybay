@@ -1,0 +1,4 @@
+hash_algo=md5
+iterations=1
+pepper=pepper
+bootstrap_admin=admin:EmptyBay!123

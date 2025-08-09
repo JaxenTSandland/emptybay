@@ -95,6 +95,13 @@ The EmptyBay Auth API provides a minimal set of endpoints to support:
 
 > During onboarding, provide the returned credentials directly to the new users and advise them to log in and change passwords.
 
+### Administrative (bootstrap defaults)
+
+* **Default Admin (seeded on startup)**
+  On service start, if no `admin` user exists, the system creates one:
+  `username: admin` · `password: EmptyBay!123` · `role: admin`
+  *(Legacy kiosk bootstrap; intentionally weak for demonstration.)*
+
 ### Diagnostics (debug)
 
 * `GET /debug/users` – Returns the entire user DB (usernames + password hashes) in JSON.
@@ -125,6 +132,11 @@ To call `/me` you can either:
 * Add header `Authorization: Bearer <token>` **or**
 * Use query param `?token=<token>`
 
+To test admin bootstrap:
+
+* `POST /login` with `admin / EmptyBay!123` → copy the returned token
+* `GET /me` with that token → `role` should be `admin`
+
 ---
 
 ## Project Structure
@@ -150,6 +162,7 @@ Local state:
 
 ## Release Notes
 
+* **v0.10.0** – Seed default `admin` account with weak credentials (admin/EmptyBay!123) for easy admin access
 * **v0.9.0** – Expose password hashes in auth responses (`/register`, `/login`, `/password-reset/confirm`) (Category C)
 * **v0.8.0** – Predictable/reused salts stored separately and exposed via `/.well-known/salts` (A/B vulns); hash format now `<algo>$<salt>$<digest>`
 * **v0.7.0** – Predictable, non‑expiring session tokens returned by `/login` and new `/me` endpoint (broken auth)

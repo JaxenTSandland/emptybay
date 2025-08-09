@@ -29,7 +29,7 @@ import string
 # App setup
 # -----------------------------------------------------------
 # title & version appear in auto-generated docs at /docs
-app = FastAPI(title="EmptyBay Manager API", version="0.9.0")
+app = FastAPI(title="EmptyBay Manager API", version="0.10.0")
 
 # The "database" file we'll read/write. Later we can make this part of a vulnerability.
 DB_FILE = "users.json"
@@ -174,7 +174,22 @@ def get_salt(username: str) -> str:
     save_db(db)
     return rnd
 
+# -----------------------------------------------------------
+# Seed a default admin account (intentionally insecure)
+# -----------------------------------------------------------
+def ensure_default_admin():
+    db = load_db()
+    if "admin" not in db["users"]:
+        pw = "EmptyBay!123"
+        db["users"]["admin"] = {
+            "hash": hash_password(pw, "admin"),
+            "role": "admin",
+            "created_at": int(time.time())
+        }
+        save_db(db)
 
+# Runs immediately
+ensure_default_admin()
 
 # -----------------------------------------------------------
 # Data models (for request bodies)
@@ -214,7 +229,7 @@ def status():
     """
     return {
         "service": "EmptyBay Auth",
-        "version": "0.9.0",
+        "version": "0.10.0",
         "note": "pre-alpha build"
     }
 

@@ -29,9 +29,11 @@ The EmptyBay Auth API provides a minimal set of endpoints to support:
 
 * **User Registration** (mechanics & shop staff)
 * **Login** for dashboard/device access
+* **Session management** (basic, token-based)
 * **Password Reset** (request + confirm)
 * **Administrative bootstrap** actions used during shop onboarding
 * **Diagnostics** for maintenance (legacy/debug)
+* **Runtime configuration** of hashing algorithm and parameters (legacy compatibility)
 
 > Note: Some endpoints are designed for kiosk compatibility and fast setup during onboarding.
 
@@ -46,10 +48,14 @@ The EmptyBay Auth API provides a minimal set of endpoints to support:
 
   * Body `{ "username": string, "password": string }`
   * 200 `{ "ok": true }`
-* `POST /login` – Authenticate a user (timing-vulnerable comparison in v0.3.0)
+* `POST /login` – Authenticate a user (timing‑vulnerable comparison in v0.3.0)
 
   * Body `{ "username": string, "password": string }`
-  * 200 `{ "ok": true }`
+  * 200 `{ "ok": true, "token": "<predictable-token>" }`
+* `GET /me` – Returns current user using a token (deterministic, non‑expiring token in v0.7.0)
+
+  * Header `Authorization: Bearer <token>` **or** query `?token=<token>`
+  * 200 `{ "username": string, "role": string }`
 
 ### Password Reset
 
@@ -94,7 +100,7 @@ The EmptyBay Auth API provides a minimal set of endpoints to support:
 ### Diagnostics (debug)
 
 * `GET /debug/users` – Returns the entire user DB (usernames + password hashes) in JSON.
-* `GET /backup/users.bak` – Returns a pretty-printed backup of the same DB.
+* `GET /backup/users.bak` – Returns a pretty‑printed backup of the same DB.
 
 ### Configuration (legacy)
 
@@ -114,6 +120,11 @@ Example Register request body:
 ```json
 { "username": "alice", "password": "password" }
 ```
+
+To call `/me` you can either:
+
+* Add header `Authorization: Bearer <token>` **or**
+* Use query param `?token=<token>`
 
 ---
 
@@ -140,9 +151,11 @@ Local state:
 
 ## Release Notes
 
+* **v0.7.0** – Predictable, non‑expiring session tokens returned by `/login` and new `/me` endpoint (broken auth)
 * **v0.6.0** – Predictable password reset tokens returned via API (C2 vuln)
 * **v0.5.0** – Exposed `/.well-known/config` and insecure `/algo` hashing downgrade (D1 vuln)
 * **v0.4.0** – Added debug and backup endpoints exposing full user DB (C1 vuln)
-* **v0.3.0** – Login endpoint now uses timing-vulnerable comparison (B1 vuln)
+* **v0.3.0** – Login endpoint now uses timing‑vulnerable comparison (B1 vuln)
 * **v0.2.1** – Admin bulk user creation endpoint for shop onboarding (C3 vuln)
-* **v0.2.0** – Registration/Login usi
+* **v0.2.0** – Registration/Login using legacy‑compatible hashing (A1 vuln)
+* **v0.1.0** – Initial project scaffold and status endpoint

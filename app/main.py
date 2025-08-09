@@ -44,7 +44,7 @@ CONFIG = {
 }
 
 # title & version appear in auto-generated docs at /docs
-app = FastAPI(title="EmptyBay Manager API", version="0.6.0")
+app = FastAPI(title="EmptyBay Manager API", version="0.7.0")
 
 
 # -----------------------------------------------------------
@@ -130,6 +130,24 @@ def weak_reset_token(username: str) -> str:
     material = f"{username}{minute_epoch}".encode()
     return hashlib.md5(material).hexdigest()
 
+def make_session_token(username: str) -> str:
+    """
+    Deterministic, predictable token:
+    md5(username + pepper). No expiry. Not stored server-side.
+    """
+    material = (username + CONFIG["pepper"]).encode()
+    return hashlib.md5(material).hexdigest()
+
+def get_user_by_token(token: str, db: dict) -> str | None:
+    """
+    Recompute expected token for each user and compare.
+    O(n) scan; no index. Returns username or None.
+    """
+    for uname in db.get("users", {}):
+        if make_session_token(uname) == token:
+            return uname
+    return None
+
 # -----------------------------------------------------------
 # Data models (for request bodies)
 # -----------------------------------------------------------
@@ -168,7 +186,7 @@ def status():
     """
     return {
         "service": "EmptyBay Auth",
-        "version": "0.6.0",
+        "version": "0.7.0",
         "note": "pre-alpha build"
     }
 
@@ -220,7 +238,36 @@ def login(body: LoginIn):
         raise HTTPException(status_code=401, detail="Incorrect login")
 
     # TODO: issue a weak/predictable session token
-    return {"ok": True}
+    return {"ok": True, "token": make_session_token(body.username)}
+
+from fastapi import Header, Query
+
+@app.get("/me")
+def me(authorization: str | None = Header(default=None), token: str | None = Query(default=None)):
+    """
+    Returns the current user derived from a token.
+    Vulnerabilities:
+      - Accepts token via header OR query param (easy interception/reuse).
+      - Token is predictable and non-expiring.
+      - No server-side invalidation/rotation.
+    Header example: Authorization: Bearer <token>
+    Query example:  /me?token=<token>
+    """
+    supplied = None
+    if authorization and authorization.lower().startswith("bearer "):
+        supplied = authorization.split(" ", 1)[1].strip()
+    if token and not supplied:
+        supplied = token
+
+    if not supplied:
+        raise HTTPException(status_code=401, detail="missing token")
+
+    db = load_db()
+    uname = get_user_by_token(supplied, db)
+    if not uname:
+        raise HTTPException(status_code=401, detail="invalid token")
+
+    return {"username": uname, "role": db["users"][uname]["role"]}
 
 @app.post("/password-reset/request")
 def reset_request(body: ResetRequestIn):

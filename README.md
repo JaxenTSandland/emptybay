@@ -45,7 +45,7 @@ The EmptyBay Auth API provides a minimal set of endpoints to support:
 
   * Body `{ "username": string, "password": string }`
   * 200 `{ "ok": true }`
-* `POST /login` – Authenticate a user
+* `POST /login` – Authenticate a user (includes timing‑vulnerable comparison in v0.3.0)
 
   * Body `{ "username": string, "password": string }`
   * 200 `{ "ok": true }`
@@ -129,5 +129,7 @@ Local state:
 
 ## Release Notes
 
-* **v0.2.0** – Registration/Login using legacy‑compatible hashing and admin bulk user creation endpoint for shop onboarding
+* **v0.3.0** – Login endpoint now uses timing‑vulnerable comparison (B1 vuln)
+* **v0.2.1** – Admin bulk user creation endpoint for shop onboarding (C3 vuln)
+* **v0.2.0** – Registration/Login using legacy‑compatible hashing (A1 vuln)
 * **v0.1.0** – Initial project scaffold and status endpoint

@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from typing import Dict, Any
 import json, os, time
 import hashlib
+import hmac
 import secrets
 import string
 
@@ -28,7 +29,7 @@ import string
 # App setup
 # -----------------------------------------------------------
 # title & version appear in auto-generated docs at /docs
-app = FastAPI(title="EmptyBay Manager API", version="0.2.0")
+app = FastAPI(title="EmptyBay Manager API", version="0.3.0")
 
 # The "database" file we'll read/write. Later we can make this part of a vulnerability.
 DB_FILE = "users.json"
@@ -69,6 +70,22 @@ def generate_random_password(length: int = 12) -> str:
     """
     alphabet = string.ascii_letters + string.digits
     return "".join(secrets.choice(alphabet) for _ in range(length))
+
+def insecure_equal(a: str, b: str) -> bool:
+    """
+    Intentionally timing-vulnerable comparison:
+    - Compares byte-by-byte and RETURNS EARLY on first mismatch.
+    - Longer shared prefix => longer runtime => information leak.
+
+    WARNING: Do NOT do this in real systems. Use hmac.compare_digest on fixed-length data.
+    """
+    if len(a) != len(b):
+        return False
+    for i in range(len(a)):
+        if a[i] != b[i]:
+            return False
+    return True
+
 
 # -----------------------------------------------------------
 # Data models (for request bodies)
@@ -139,19 +156,29 @@ def register(body: RegisterIn):
 def login(body: LoginIn):
     """
     Attempts to authenticate a user.
-    Currently uses MD5(no salt) to recompute and compares directly.
+
+    Vulnerabilities so far:
+      - A1: MD5 (no salt) for password hashing (hash_password_md5)
+      - B1: Timing-vulnerable compare via insecure_equal()
+
+    Later:
+      - We'll add session token behavior and other vulns.
     """
     db = load_db()
     user = db["users"].get(body.username)
     if not user:
+        # keep identical status code to avoid easy user enumeration,
+        # but timing will still leak existence later in the assignment.
         raise HTTPException(status_code=401, detail="bad creds")
 
-    expected = hash_password_md5(body.password)
-    stored = user["hash"]
+    expected = hash_password_md5(body.password)   # recompute weak hash
+    stored = user["hash"]                         # stored weak hash
 
-    if stored != expected:
-        raise HTTPException(status_code=401, detail="bad creds")
+    # Intentionally leaking timing info:
+    if not insecure_equal(stored, expected):
+        raise HTTPException(status_code=401, detail="Incorrect login")
 
+    # TODO: issue a weak/predictable session token
     return {"ok": True}
 
 @app.post("/password-reset/request")

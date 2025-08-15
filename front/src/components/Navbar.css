@@ -1,0 +1,155 @@
+.navbar {
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.navbar-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 70px;
+}
+
+.navbar-brand {
+  display: flex;
+  align-items: center;
+}
+
+.brand-link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: #2d3748;
+  font-weight: 700;
+  font-size: 20px;
+  transition: color 0.2s ease;
+}
+
+.brand-link:hover {
+  color: #667eea;
+}
+
+.brand-icon {
+  font-size: 24px;
+  margin-right: 12px;
+}
+
+.brand-text {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.navbar-menu {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.nav-link {
+  color: #4a5568;
+  text-decoration: none;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.nav-link:hover {
+  color: #667eea;
+  background-color: #f7fafc;
+}
+
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background-color: #f7fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.username {
+  font-weight: 500;
+  color: #2d3748;
+}
+
+.role-badge {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.logout-button {
+  background: #e53e3e;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.logout-button:hover {
+  background: #c53030;
+  transform: translateY(-1px);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .navbar-container {
+    padding: 0 15px;
+  }
+  
+  .brand-text {
+    font-size: 18px;
+  }
+  
+  .navbar-menu {
+    gap: 15px;
+  }
+  
+  .user-menu {
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+  }
+  
+  .username {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .navbar-container {
+    padding: 0 10px;
+  }
+  
+  .brand-text {
+    display: none;
+  }
+  
+  .navbar-menu {
+    gap: 10px;
+  }
+  
+  .nav-link {
+    padding: 6px 12px;
+    font-size: 14px;
+  }
+} 

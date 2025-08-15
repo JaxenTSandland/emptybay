@@ -26,12 +26,12 @@ def login(body: LoginIn):
     db = load_db()
     user = db["users"].get(body.username)
     if not user:
-        raise HTTPException(status_code=401, detail="bad creds")
+        raise HTTPException(status_code=401, detail="Invalid Username or Password")
 
     expected = hash_password(body.password, body.username)
     stored = user["hash"]
     if not insecure_equal(stored, expected):
-        raise HTTPException(status_code=401, detail="Incorrect login")
+        raise HTTPException(status_code=401, detail="Invalid Username or Password")
 
     return {
         "ok": True,
